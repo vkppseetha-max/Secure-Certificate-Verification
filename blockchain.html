@@ -1,8 +1,12 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Blockchain Records</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+
+    <link rel="stylesheet"
+          href="{{ url_for('static', filename='style.css') }}">
 
     <style>
         body {
@@ -29,8 +33,7 @@
             padding: 18px;
             border-radius: 10px;
             margin-bottom: 20px;
-            border-left: 6px solid
-                {{ 'green' if is_valid else 'red' }};
+            border-left: 6px solid green;
         }
 
         .block {
@@ -61,14 +64,28 @@
             text-decoration: none;
             border-radius: 6px;
         }
+
+        .btn:hover {
+            background: #102542;
+        }
+
+        .success {
+            color: green;
+            font-weight: bold;
+        }
+
+        .error {
+            color: red;
+            font-weight: bold;
+        }
     </style>
 </head>
 
 <body>
 
 <header>
-    <h1>🔗 Blockchain Records</h1>
-    <p>Secure Digital Certificate Verification</p>
+    <h1>Blockchain Records</h1>
+    <p>Secure Digital Certificate Verification Using Blockchain and Hashing</p>
 </header>
 
 <div class="container">
@@ -77,36 +94,38 @@
         <h2>Blockchain Status</h2>
 
         {% if is_valid %}
-            <p>✅ Blockchain integrity check passed.</p>
+            <p class="success">
+                Blockchain integrity check passed.
+            </p>
         {% else %}
-            <p>❌ Blockchain integrity check failed.</p>
+            <p class="error">
+                Blockchain integrity check failed.
+            </p>
         {% endif %}
     </div>
 
     {% for block in chain %}
+
     <div class="block">
 
         <h2>Block {{ block.index }}</h2>
 
         <p><b>Certificate Details:</b></p>
-        <div class="hash">
-            {{ block.data }}
-        </div>
+        <div class="hash">{{ block.data }}</div>
 
         <p><b>Previous Hash:</b></p>
-        <div class="hash">
-            {{ block.previous_hash }}
-        </div>
+        <div class="hash">{{ block.previous_hash }}</div>
 
         <p><b>Block Hash:</b></p>
-        <div class="hash">
-            {{ block.hash }}
-        </div>
+        <div class="hash">{{ block.hash }}</div>
 
     </div>
+
     {% endfor %}
 
-    <a href="{{ url_for('home') }}" class="btn">🏠 Home</a>
+    <a href="{{ url_for('home') }}" class="btn">
+        Home
+    </a>
 
 </div>
 
