@@ -8,20 +8,53 @@ import os
 
 app = Flask(__name__)
 
-DATABASE = "certificates.db"
-UPLOAD_FOLDER = "uploads"
-QR_FOLDER = "static/qrcodes"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DATABASE = os.path.join(BASE_DIR, "certificates.db")
+UPLOAD_FOLDER = os.path.join(BASE_DIR, "uploads")
+QR_FOLDER = os.path.join(BASE_DIR, "static", "qrcodes")
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(QR_FOLDER, exist_ok=True)
 
 
-# Generate SHA-256 hash for a file
+# Database connection
+def get_db():
+    conn = sqlite3.connect(DATABASE)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+# Create database table
+def create_tables():
+    conn = get_db()
+
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS certificates (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            certificate_id TEXT UNIQUE,
+            name TEXT NOT NULL,
+            course TEXT NOT NULL,
+            institution TEXT NOT NULL,
+            certificate_hash TEXT NOT NULL
+        )
+    """)
+
+    conn.commit()
+    conn.close()
+
+
+# Initialize database when app starts
+create_tables()
+
+
+# File SHA-256 hash
 def file_hash(filepath):
     sha = hashlib.sha256()
+
     with open(filepath, "rb") as f:
         for chunk in iter(lambda: f.read(4096), b""):
             sha.update(chunk)
+
     return sha.hexdigest()
 
 
@@ -37,9 +70,11 @@ class Block:
 
     def calculate_hash(self):
         data = (
-            str(self.index) + self.cert_id +
-            self.cert_hash + str(self.timestamp) +
-            self.previous_hash
+            str(self.index)
+            + self.cert_id
+            + self.cert_hash
+            + str(self.timestamp)
+            + self.previous_hash
         )
         return hashlib.sha256(data.encode()).hexdigest()
 
@@ -53,12 +88,14 @@ class Blockchain:
 
     def add_block(self, cert_id, cert_hash):
         previous = self.chain[-1]
+
         block = Block(
             len(self.chain),
             cert_id,
             cert_hash,
             previous.hash
         )
+
         self.chain.append(block)
 
     def verify_chain(self):
@@ -78,32 +115,6 @@ class Blockchain:
 blockchain = Blockchain()
 
 
-# Database connection
-def get_db():
-    conn = sqlite3.connect(DATABASE)
-    conn.row_factory = sqlite3.Row
-    return conn
-
-
-# Create database table
-def create_tables():
-    conn = get_db()
-
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS certificates (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            certificate_id TEXT UNIQUE,
-            name TEXT,
-            course TEXT,
-            institution TEXT,
-            certificate_hash TEXT
-        )
-    """)
-
-    conn.commit()
-    conn.close()
-
-
 # Get certificate details
 def get_certificate(cert_id):
     conn = get_db()
@@ -117,7 +128,7 @@ def get_certificate(cert_id):
     return cert
 
 
-# Save certificate and add blockchain block
+# Issue certificate
 def add_certificate(name, course, institution, pdf_path):
     cert_id = str(uuid.uuid4())
     cert_hash = file_hash(pdf_path)
@@ -135,14 +146,19 @@ def add_certificate(name, course, institution, pdf_path):
 
     blockchain.add_block(cert_id, cert_hash)
 
-    qr_url = url_for("verify", _external=True) + "?id=" + cert_id
+    qr_url = url_for(
+        "verify",
+        id=cert_id,
+        _external=True
+    )
+
     qr = qrcode.make(qr_url)
     qr.save(os.path.join(QR_FOLDER, cert_id + ".png"))
 
     return cert_id
 
 
-# Home page
+# Home
 @app.route("/")
 def home():
     return render_template("index.html")
@@ -167,16 +183,23 @@ def issue():
         path = os.path.join(UPLOAD_FOLDER, filename)
         pdf.save(path)
 
-        cert_id = add_certificate(
-            name, course, institution, path
-        )
+        try:
+            cert_id = add_certificate(
+                name, course, institution, path
+            )
+        except Exception:
+            if os.path.exists(path):
+                os.remove(path)
+            raise
 
-        return redirect(url_for("result", certificate_id=cert_id))
+        return redirect(
+            url_for("result", certificate_id=cert_id)
+        )
 
     return render_template("issue.html")
 
 
-# Certificate result page
+# Certificate result
 @app.route("/result/<certificate_id>")
 def result(certificate_id):
     certificate = get_certificate(certificate_id)
@@ -196,7 +219,9 @@ def verify():
     cert_id = request.args.get("id", "").strip()
 
     if request.method == "POST":
-        cert_id = request.form.get("certificate_id", "").strip()
+        cert_id = request.form.get(
+            "certificate_id", ""
+        ).strip()
 
     if cert_id:
         certificate = get_certificate(cert_id)
@@ -205,9 +230,9 @@ def verify():
             message = "Certificate Not Found"
         else:
             block_exists = any(
-                b.cert_id == cert_id and
-                b.cert_hash == certificate["certificate_hash"]
-                for b in blockchain.chain
+                block.cert_id == cert_id
+                and block.cert_hash == certificate["certificate_hash"]
+                for block in blockchain.chain
             )
 
             if block_exists and blockchain.verify_chain():
@@ -238,14 +263,19 @@ def verify_pdf():
                 str(uuid.uuid4()) + ".pdf"
             )
 
-            pdf.save(temp_path)
-            uploaded_hash = file_hash(temp_path)
-            os.remove(temp_path)
+            try:
+                pdf.save(temp_path)
+                uploaded_hash = file_hash(temp_path)
+            finally:
+                if os.path.exists(temp_path):
+                    os.remove(temp_path)
 
             conn = get_db()
+
             certs = conn.execute(
                 "SELECT * FROM certificates"
             ).fetchall()
+
             conn.close()
 
             found = None
@@ -257,9 +287,9 @@ def verify_pdf():
 
             if found:
                 block_exists = any(
-                    b.cert_id == found["certificate_id"] and
-                    b.cert_hash == uploaded_hash
-                    for b in blockchain.chain
+                    block.cert_id == found["certificate_id"]
+                    and block.cert_hash == uploaded_hash
+                    for block in blockchain.chain
                 )
 
                 if block_exists and blockchain.verify_chain():
@@ -284,7 +314,7 @@ def verify_pdf():
     )
 
 
-# Styled blockchain page
+# View blockchain
 @app.route("/blockchain")
 def view_blockchain():
     return render_template(
@@ -296,5 +326,4 @@ def view_blockchain():
 
 # Run application
 if __name__ == "__main__":
-    create_tables()
     app.run(debug=True)
