@@ -91,17 +91,18 @@
         <p><b>Certificate Details:</b></p>
         <div class="hash">
             {{ block.data }}
-           def is_valid(self):
-        for i, current in enumerate(self.chain):
-            if current.hash != current.calculate_hash():
-                return False
+        </div>
 
-            if i > 0:
-                previous = self.chain[i - 1]
-                if current.previous_hash != previous.hash:
-                    return False
+        <p><b>Previous Hash:</b></p>
+        <div class="hash">
+            {{ block.previous_hash }}
+        </div>
 
-        return True
+        <p><b>Block Hash:</b></p>
+        <div class="hash">
+            {{ block.hash }}
+        </div>
+
     </div>
     {% endfor %}
 
