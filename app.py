@@ -3,13 +3,16 @@ import sqlite3
 import hashlib
 import uuid
 import time
+import json
 
 import qrcode
 from flask import (
     Flask, render_template, request, redirect,
     url_for, session, flash
 )
-from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.security import (
+    generate_password_hash, check_password_hash
+)
 from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
@@ -28,6 +31,7 @@ os.makedirs(QR_FOLDER, exist_ok=True)
 app.config["MAX_CONTENT_LENGTH"] = 10 * 1024 * 1024
 
 
+# DATABASE
 def get_db():
     conn = sqlite3.connect(DATABASE)
     conn.row_factory = sqlite3.Row
@@ -65,42 +69,77 @@ def create_tables():
 create_tables()
 
 
-# Blockchain demonstration
+# BLOCKCHAIN
 class Block:
-    def __init__(self, index, data, previous_hash):
+    def __init__(self, index, data, previous_hash, timestamp=None):
         self.index = index
-        self.timestamp = time.time()
+        self.timestamp = timestamp if timestamp is not None else time.time()
         self.data = data
         self.previous_hash = previous_hash
         self.hash = self.calculate_hash()
 
     def calculate_hash(self):
-        value = (
-            str(self.index) + str(self.timestamp)
-            + str(self.data) + str(self.previous_hash)
-        )
-        return hashlib.sha256(value.encode()).hexdigest()
+        block_content = {
+            "index": self.index,
+            "timestamp": self.timestamp,
+            "data": self.data,
+            "previous_hash": self.previous_hash
+        }
+
+        encoded = json.dumps(
+            block_content,
+            sort_keys=True,
+            separators=(",", ":")
+        ).encode("utf-8")
+
+        return hashlib.sha256(encoded).hexdigest()
 
 
 class Blockchain:
     def __init__(self):
-        self.chain = [Block(0, "Genesis Block", "0")]
+        self.chain = [
+            Block(0, "Genesis Block", "0")
+        ]
 
     def add_block(self, data):
         previous = self.chain[-1]
-        block = Block(len(self.chain), data, previous.hash)
+
+        block = Block(
+            len(self.chain),
+            data,
+            previous.hash
+        )
+
         self.chain.append(block)
 
     def is_valid(self):
-        for i in range(1, len(self.chain)):
-            current = self.chain[i]
-            previous = self.chain[i - 1]
+        if not self.chain:
+            return False
 
-            if current.hash != current.calculate_hash():
+        for i, block in enumerate(self.chain):
+
+            # Check each block's stored hash
+            if block.hash != block.calculate_hash():
                 return False
 
-            if current.previous_hash != previous.hash:
-                return False
+            # Genesis block validation
+            if i == 0:
+                if block.index != 0:
+                    return False
+
+                if block.previous_hash != "0":
+                    return False
+
+            else:
+                previous = self.chain[i - 1]
+
+                # Check block order
+                if block.index != i:
+                    return False
+
+                # Check chain connection
+                if block.previous_hash != previous.hash:
+                    return False
 
         return True
 
@@ -108,6 +147,7 @@ class Blockchain:
 blockchain = Blockchain()
 
 
+# LOGIN PROTECTION
 def login_required(function):
     from functools import wraps
 
@@ -116,11 +156,13 @@ def login_required(function):
         if "user_id" not in session:
             flash("Please login to issue a certificate.", "error")
             return redirect(url_for("login"))
+
         return function(*args, **kwargs)
 
     return wrapper
 
 
+# FILE HASH
 def file_sha256(filepath):
     sha = hashlib.sha256()
 
@@ -131,14 +173,13 @@ def file_sha256(filepath):
     return sha.hexdigest()
 
 
-# Home page — both endpoint names supported
+# HOME
 @app.route("/")
 @app.route("/home")
 def home():
     return render_template("index.html")
 
 
-# Keep compatibility with existing templates using index
 app.add_url_rule(
     "/index",
     endpoint="index",
@@ -147,7 +188,7 @@ app.add_url_rule(
 )
 
 
-# Registration
+# REGISTER
 @app.route("/register", methods=["GET", "POST"])
 def register():
     if request.method == "POST":
@@ -160,32 +201,46 @@ def register():
             return redirect(url_for("register"))
 
         if len(password) < 8:
-            flash("Password must be at least 8 characters.", "error")
+            flash(
+                "Password must be at least 8 characters.",
+                "error"
+            )
             return redirect(url_for("register"))
 
         conn = get_db()
 
         try:
             conn.execute(
-                """INSERT INTO users (name, email, password_hash)
-                   VALUES (?, ?, ?)""",
-                (name, email, generate_password_hash(password))
+                """
+                INSERT INTO users (name, email, password_hash)
+                VALUES (?, ?, ?)
+                """,
+                (
+                    name,
+                    email,
+                    generate_password_hash(password)
+                )
             )
+
             conn.commit()
 
         except sqlite3.IntegrityError:
             conn.close()
-            flash("Email already registered. Please login.", "error")
+            flash(
+                "Email already registered. Please login.",
+                "error"
+            )
             return redirect(url_for("login"))
 
         conn.close()
+
         flash("Registration successful! Please login.", "success")
         return redirect(url_for("login"))
 
     return render_template("register.html")
 
 
-# Login
+# LOGIN
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
@@ -193,9 +248,12 @@ def login():
         password = request.form.get("password", "")
 
         conn = get_db()
+
         user = conn.execute(
-            "SELECT * FROM users WHERE email = ?", (email,)
+            "SELECT * FROM users WHERE email = ?",
+            (email,)
         ).fetchone()
+
         conn.close()
 
         if user and check_password_hash(
@@ -213,7 +271,7 @@ def login():
     return render_template("login.html")
 
 
-# Logout
+# LOGOUT
 @app.route("/logout")
 def logout():
     session.clear()
@@ -221,7 +279,7 @@ def logout():
     return redirect(url_for("home"))
 
 
-# Issue certificate
+# ISSUE CERTIFICATE
 @app.route("/issue", methods=["GET", "POST"])
 @login_required
 def issue():
@@ -232,7 +290,10 @@ def issue():
         uploaded_file = request.files.get("certificate_file")
 
         if not name or not course or not institution:
-            flash("Please fill in all certificate details.", "error")
+            flash(
+                "Please fill in all certificate details.",
+                "error"
+            )
             return redirect(url_for("issue"))
 
         file_hash = None
@@ -253,15 +314,26 @@ def issue():
         issue_date = time.strftime("%Y-%m-%d")
 
         conn = get_db()
-        conn.execute("""
+
+        conn.execute(
+            """
             INSERT INTO certificates
-            (certificate_id, name, course, institution,
-             file_hash, issue_date)
+            (
+                certificate_id, name, course,
+                institution, file_hash, issue_date
+            )
             VALUES (?, ?, ?, ?, ?, ?)
-        """, (
-            certificate_id, name, course, institution,
-            file_hash, issue_date
-        ))
+            """,
+            (
+                certificate_id,
+                name,
+                course,
+                institution,
+                file_hash,
+                issue_date
+            )
+        )
+
         conn.commit()
         conn.close()
 
@@ -274,11 +346,14 @@ def issue():
         })
 
         qr_url = request.url_root.rstrip("/") + url_for(
-            "result", certificate_id=certificate_id
+            "result",
+            certificate_id=certificate_id
         )
 
         qr = qrcode.make(qr_url)
-        qr.save(os.path.join(QR_FOLDER, certificate_id + ".png"))
+        qr.save(
+            os.path.join(QR_FOLDER, certificate_id + ".png")
+        )
 
         return redirect(
             url_for("result", certificate_id=certificate_id)
@@ -287,24 +362,32 @@ def issue():
     return render_template("issue.html")
 
 
-# Certificate result
+# CERTIFICATE RESULT
 @app.route("/result/<certificate_id>")
 def result(certificate_id):
     conn = get_db()
+
     certificate = conn.execute(
-        "SELECT * FROM certificates WHERE certificate_id = ?",
+        """
+        SELECT * FROM certificates
+        WHERE certificate_id = ?
+        """,
         (certificate_id,)
     ).fetchone()
+
     conn.close()
 
     if not certificate:
         flash("Certificate not found.", "error")
         return redirect(url_for("verify"))
 
-    return render_template("result.html", certificate=certificate)
+    return render_template(
+        "result.html",
+        certificate=certificate
+    )
 
 
-# Verify by certificate ID — public
+# VERIFY CERTIFICATE ID
 @app.route("/verify", methods=["GET", "POST"])
 def verify():
     if request.method == "POST":
@@ -313,15 +396,23 @@ def verify():
         ).strip()
 
         conn = get_db()
+
         certificate = conn.execute(
-            "SELECT * FROM certificates WHERE certificate_id = ?",
+            """
+            SELECT * FROM certificates
+            WHERE certificate_id = ?
+            """,
             (certificate_id,)
         ).fetchone()
+
         conn.close()
 
         if certificate:
             return redirect(
-                url_for("result", certificate_id=certificate_id)
+                url_for(
+                    "result",
+                    certificate_id=certificate_id
+                )
             )
 
         flash("Invalid certificate ID.", "error")
@@ -329,7 +420,7 @@ def verify():
     return render_template("verify.html")
 
 
-# Verify PDF using SHA-256 — public
+# VERIFY PDF
 @app.route("/verify-pdf", methods=["GET", "POST"])
 def verify_pdf():
     if request.method == "POST":
@@ -344,8 +435,10 @@ def verify_pdf():
             return redirect(url_for("verify_pdf"))
 
         filepath = os.path.join(
-            UPLOAD_FOLDER, uuid.uuid4().hex + ".pdf"
+            UPLOAD_FOLDER,
+            uuid.uuid4().hex + ".pdf"
         )
+
         uploaded_file.save(filepath)
 
         try:
@@ -355,10 +448,15 @@ def verify_pdf():
                 os.remove(filepath)
 
         conn = get_db()
+
         certificate = conn.execute(
-            "SELECT * FROM certificates WHERE file_hash = ?",
+            """
+            SELECT * FROM certificates
+            WHERE file_hash = ?
+            """,
             (uploaded_hash,)
         ).fetchone()
+
         conn.close()
 
         return render_template(
@@ -370,7 +468,7 @@ def verify_pdf():
     return render_template("verify_pdf.html")
 
 
-# Blockchain records
+# BLOCKCHAIN RECORDS
 @app.route("/blockchain")
 def view_blockchain():
     return render_template(
