@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Blockchain Records</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #eef2f7;
+            margin: 0;
+        }
+        header {
+            background: #102542;
+            color: white;
+            text-align: center;
+            padding: 25px;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 25px auto;
+            padding: 20px;
+        }
+        .status {
+            background: white;
+            padding: 18px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            border-left: 6px solid #16a34a;
+        }
+        .block {
+            background: white;
+            padding: 20px;
+            margin: 18px 0;
+            border-radius: 10px;
+            border: 1px solid #d1d5db;
+            overflow-wrap: anywhere;
+        }
+        .block h2 {
+            color: #174ea6;
+        }
+        .hash {
+            background: #f1f5f9;
+            padding: 10px;
+            border-radius: 5px;
+            overflow-wrap: anywhere;
+        }
+        .btn {
+            display: inline-block;
+            background: #174ea6;
+            color: white;
+            padding: 12px 20px;
+            text-decoration: none;
+            border-radius: 6px;
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>🔗 Blockchain Records</h1>
+    <p>Secure Digital Certificate Verification</p>
+</header>
+
+<div class="container">
+
+    <div class="status">
+        <h2>Blockchain Status</h2>
+
+        {% if blockchain_valid %}
+            <p>✅ Blockchain integrity check passed.</p>
+        {% else %}
+            <p>❌ Blockchain integrity check failed.</p>
+        {% endif %}
+    </div>
+
+    {% for block in blocks %}
+    <div class="block">
+        <h2>Block {{ block.index }}</h2>
+
+        <p><b>Certificate ID:</b></p>
+        <div class="hash">{{ block.cert_id }}</div>
+
+        <p><b>Certificate Hash:</b></p>
+        <div class="hash">{{ block.cert_hash }}</div>
+
+        <p><b>Previous Hash:</b></p>
+        <div class="hash">{{ block.previous_hash }}</div>
+
+        <p><b>Block Hash:</b></p>
+        <div class="hash">{{ block.hash }}</div>
+    </div>
+    {% endfor %}
+
+    <a href="{{ url_for('home') }}" class="btn">🏠 Home</a>
+
+</div>
+</body>
+</html>
