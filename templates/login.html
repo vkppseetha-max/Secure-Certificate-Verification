@@ -4,7 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login | Secure Certificate Verification</title>
+
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+
     <style>
         .auth-box {
             max-width: 420px;
@@ -14,21 +16,29 @@
             border-radius: 12px;
             box-shadow: 0 4px 18px #0002;
         }
+
         .auth-box h2 { text-align: center; }
+
         .auth-box input {
             width: 100%;
             padding: 12px;
             margin: 10px 0;
             box-sizing: border-box;
         }
+
         .auth-box button {
             width: 100%;
             padding: 12px;
             cursor: pointer;
         }
-        .message { text-align: center; margin: 10px 0; }
+
+        .message {
+            text-align: center;
+            margin: 10px 0;
+        }
     </style>
 </head>
+
 <body>
     <div class="auth-box">
         <h2>Login</h2>
@@ -41,7 +51,6 @@
         {% endwith %}
 
         <form method="POST" action="{{ url_for('login') }}">
-            <button type="submit">Login</button>
             <label>Email Address</label>
             <input type="email" name="email"
                    placeholder="Enter your email" required>
@@ -57,7 +66,9 @@
             <a href="{{ url_for('register') }}">Register here</a>
         </p>
 
-        <p><a href="{{ url_for('index') }}">Back to Home</a></p>
+        <p>
+            <a href="{{ url_for('index') }}">Back to Home</a>
+        </p>
     </div>
 </body>
 </html>
