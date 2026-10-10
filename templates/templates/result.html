@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Certificate Generated</title>
+    <link rel="stylesheet"
+          href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+<header>
+    <h1>Certificate Generated Successfully!</h1>
+    <p>Secure Digital Certificate Verification</p>
+</header>
+
+<div class="container">
+
+    {% if certificate %}
+
+        <h2>Certificate Details</h2>
+
+        <p><b>Name:</b> {{ certificate.name }}</p>
+        <p><b>Course:</b> {{ certificate.course }}</p>
+        <p><b>Institution:</b> {{ certificate.institution }}</p>
+
+        <p><b>Certificate ID:</b></p>
+        <textarea rows="3" readonly>{{ certificate.certificate_id }}</textarea>
+
+        <h3>Certificate QR Code</h3>
+
+        <img
+            src="{{ url_for('static', filename='qrcodes/' + certificate.certificate_id + '.png') }}"
+            alt="Certificate QR Code"
+            width="200"
+        >
+
+        <p>Scan the QR code to verify the certificate.</p>
+
+    {% else %}
+
+        <p>Certificate not found.</p>
+
+    {% endif %}
+
+    <br>
+
+    <a href="{{ url_for('home') }}" class="btn">Home</a>
+    <a href="{{ url_for('verify') }}" class="btn">Verify Certificate</a>
+
+</div>
+
+</body>
+</html>
