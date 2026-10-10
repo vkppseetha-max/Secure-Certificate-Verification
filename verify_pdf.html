@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Verify Certificate PDF</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+<header>
+    <h1>Verify Certificate PDF</h1>
+</header>
+
+<div class="container">
+    <form method="POST" enctype="multipart/form-data">
+        <label>Upload Certificate PDF</label>
+        <input type="file" name="pdf" accept=".pdf" required>
+        <button type="submit">Verify PDF</button>
+    </form>
+
+    {% if message %}
+        <h3>{{ message }}</h3>
+    {% endif %}
+
+    <a href="{{ url_for('home') }}" class="btn">Home</a>
+</div>
+
+</body>
+</html>

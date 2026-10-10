@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Secure Certificate Verification</title>
+    <link rel="stylesheet"
+          href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+<header>
+    <h1>Secure Digital Certificate Verification</h1>
+    <p>Blockchain and Hashing Based System</p>
+</header>
+
+<div class="container">
+    <h2>Welcome!</h2>
+
+    <p>Generate secure digital certificates and verify their authenticity.</p>
+
+    <a href="{{ url_for('issue') }}" class="btn">
+        Issue Certificate
+    </a>
+
+    <a href="{{ url_for('verify') }}" class="btn">
+        Verify Certificate ID
+    </a>
+
+    <a href="{{ url_for('verify_pdf') }}" class="btn">
+        Verify Certificate PDF
+    </a>
+
+    <a href="{{ url_for('view_blockchain') }}" class="btn">
+        View Blockchain Records
+    </a>
+</div>
+
+</body>
+</html>

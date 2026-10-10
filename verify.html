@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Verify Certificate</title>
+    <link rel="stylesheet"
+          href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+<header>
+    <h1>Certificate Verification</h1>
+    <a href="{{ url_for('home') }}">Home</a>
+</header>
+
+<div class="container">
+    <form method="POST">
+        <label>Enter Certificate ID</label>
+
+        <input type="text" name="certificate_id" required>
+
+        <button type="submit">Verify Certificate</button>
+    </form>
+
+    {% if message %}
+        <h2>{{ message }}</h2>
+    {% endif %}
+
+    {% if certificate %}
+        <p><b>Name:</b> {{ certificate.name }}</p>
+        <p><b>Course:</b> {{ certificate.course }}</p>
+        <p><b>Institution:</b> {{ certificate.institution }}</p>
+    {% endif %}
+</div>
+
+</body>
+</html>
