@@ -14,37 +14,39 @@
 
 <div class="container">
 
-    {% if certificate %}
+    <h2>Certificate Details</h2>
 
-        <h2>Certificate Details</h2>
+    <p><b>Student Name:</b> {{ student_name }}</p>
 
-        <p><b>Name:</b> {{ certificate.name }}</p>
-        <p><b>Course:</b> {{ certificate.course }}</p>
-        <p><b>Institution:</b> {{ certificate.institution }}</p>
+    <p><b>Course:</b> {{ course }}</p>
 
-        <p><b>Certificate ID:</b></p>
-        <textarea rows="3" readonly>{{ certificate.certificate_id }}</textarea>
-
-        <h3>Certificate QR Code</h3>
-
-        <img
-            src="{{ url_for('static', filename='qrcodes/' + certificate.certificate_id + '.png') }}"
-            alt="Certificate QR Code"
-            width="200"
-        >
-
-        <p>Scan the QR code to verify the certificate.</p>
-
-    {% else %}
-
-        <p>Certificate not found.</p>
-
+    {% if institution %}
+    <p><b>Institution:</b> {{ institution }}</p>
     {% endif %}
 
-    <br>
+    <p><b>Certificate ID:</b></p>
 
-    <a href="{{ url_for('home') }}" class="btn">Home</a>
-    <a href="{{ url_for('verify') }}" class="btn">Verify Certificate</a>
+    <textarea rows="3" readonly>{{ certificate_id }}</textarea>
+
+    <p><b>Issue Date:</b> {{ issue_date }}</p>
+
+    <p><b>Certificate Hash:</b></p>
+
+    <textarea rows="4" readonly>{{ file_hash }}</textarea>
+
+    <h3>Certificate QR Code</h3>
+
+    <img
+        src="data:image/png;base64,{{ qr_code }}"
+        alt="Certificate QR Code"
+        width="200"
+    >
+
+    <p>Scan the QR code to open the verification page.</p>
+
+    <a href="{{ verify_url }}" class="btn">Verify Certificate</a>
+
+    <a href="{{ url_for('index') }}" class="btn">Home</a>
 
 </div>
 
