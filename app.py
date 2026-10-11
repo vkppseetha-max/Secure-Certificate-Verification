@@ -81,19 +81,19 @@ class Blockchain:
         block = Block(len(self.chain), data, previous.hash)
         self.chain.append(block)
 
-    def is_valid(self):
-        for i in range(len(self.chain)):
-            current = self.chain[i]
+   def is_valid(self):
+    for i in range(len(self.chain)):
+        current = self.chain[i]
 
-            if current.hash != current.calculate_hash():
+        if current.hash != current.calculate_hash():
+            return False
+
+        if i > 0:
+            previous = self.chain[i - 1]
+            if current.previous_hash != previous.hash:
                 return False
 
-            if i > 0:
-                previous = self.chain[i - 1]
-                if current.previous_hash != previous.hash:
-                    return False
-
-        return True
+    return True
 
 
 blockchain = Blockchain()
