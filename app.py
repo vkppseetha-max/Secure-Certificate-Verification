@@ -75,12 +75,7 @@ class Block:
             + str(self.data)
             + self.previous_hash
         )
-        return calculate_hash(content)
-
-
-class Blockchain:
-    def __init__(self):
-        self.chain = [Block(0, "Genesis Block", "0")]
+        return hashlib.sha256(content.encode("utf-8")).hexdigest() "Genesis Block", "0")]
 
     def add_block(self, data):
         previous = self.chain[-1]
