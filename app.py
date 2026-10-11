@@ -1,7 +1,4 @@
-from flask import (
-    Flask, render_template, request, redirect,
-    url_for, session, flash
-)
+from flask import Flask, render_template, request, redirect, url_for, session, flash
 import sqlite3
 import hashlib
 import os
@@ -11,7 +8,6 @@ import base64
 from datetime import datetime
 from functools import wraps
 from werkzeug.security import generate_password_hash, check_password_hash
-from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "secure-certificate-key")
@@ -69,26 +65,16 @@ class Block:
             + str(self.data)
             + self.previous_hash
         )
-        return hashlib.sha256(
-            content.encode("utf-8")
-        ).hexdigest()
+        return hashlib.sha256(content.encode("utf-8")).hexdigest()
 
 
 class Blockchain:
     def __init__(self):
-        self.chain = [
-            Block(0, "Genesis Block", "0")
-        ]
+        self.chain = [Block(0, "Genesis Block", "0")]
 
     def add_block(self, data):
         previous = self.chain[-1]
-
-        block = Block(
-            len(self.chain),
-            data,
-            previous.hash
-        )
-
+        block = Block(len(self.chain), data, previous.hash)
         self.chain.append(block)
 
     def is_valid(self):
@@ -124,7 +110,6 @@ def login_required(func):
         if "user_id" not in session:
             flash("Please login first.")
             return redirect(url_for("login"))
-
         return func(*args, **kwargs)
 
     return wrapper
@@ -144,7 +129,7 @@ def register():
         password = request.form.get("password", "")
 
         if not username or not password:
-            flash("Enter username and password.")
+            flash("Enter email and password.")
             return redirect(url_for("register"))
 
         conn = get_db()
@@ -159,7 +144,7 @@ def register():
             return redirect(url_for("login"))
 
         except sqlite3.IntegrityError:
-            flash("Username already exists.")
+            flash("Email already registered.")
 
         finally:
             conn.close()
@@ -176,18 +161,16 @@ def login():
 
         conn = get_db()
         user = conn.execute(
-            "SELECT * FROM users WHERE username = ?",
-            (username,)
+            "SELECT * FROM users WHERE username = ?", (username,)
         ).fetchone()
         conn.close()
 
         if user and check_password_hash(user["password"], password):
             session["user_id"] = user["id"]
             session["username"] = user["username"]
-
             return redirect(url_for("index"))
 
-        flash("Invalid username or password.")
+        flash("Invalid email or password.")
 
     return render_template("login.html")
 
@@ -204,33 +187,23 @@ def logout():
 @login_required
 def issue():
     if request.method == "POST":
-        student_name = request.form.get(
-            "student_name", ""
-        ).strip()
-
-        course = request.form.get(
-            "course", ""
-        ).strip()
+        student_name = request.form.get("student_name", "").strip()
+        course = request.form.get("course", "").strip()
 
         if not student_name or not course:
-        return "ERROR: Student Name or Course is empty!", 400
+            return "ERROR: Student Name or Course is empty!", 400
 
         issue_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         certificate_id = hashlib.sha256(
             (
-                student_name
-                + course
-                + issue_date
+                student_name + course + issue_date
                 + os.urandom(16).hex()
             ).encode("utf-8")
         ).hexdigest()[:16].upper()
 
         certificate_data = (
-            certificate_id
-            + student_name
-            + course
-            + issue_date
+            certificate_id + student_name + course + issue_date
         )
 
         file_hash = hashlib.sha256(
@@ -238,19 +211,11 @@ def issue():
         ).hexdigest()
 
         conn = get_db()
-
         conn.execute("""
             INSERT INTO certificates
             (certificate_id, student_name, course, issue_date, file_hash)
             VALUES (?, ?, ?, ?, ?)
-        """, (
-            certificate_id,
-            student_name,
-            course,
-            issue_date,
-            file_hash
-        ))
-
+        """, (certificate_id, student_name, course, issue_date, file_hash))
         conn.commit()
         conn.close()
 
@@ -268,7 +233,6 @@ def issue():
         qr = qrcode.make(verify_url)
         image_buffer = io.BytesIO()
         qr.save(image_buffer, format="PNG")
-
         qr_code = base64.b64encode(
             image_buffer.getvalue()
         ).decode("utf-8")
@@ -293,23 +257,17 @@ def verify():
     certificate = None
     verified = False
 
-    certificate_id = request.args.get(
-        "certificate_id", ""
-    ).strip()
+    certificate_id = request.args.get("certificate_id", "").strip()
 
     if request.method == "POST":
-        certificate_id = request.form.get(
-            "certificate_id", ""
-        ).strip()
+        certificate_id = request.form.get("certificate_id", "").strip()
 
     if certificate_id:
         conn = get_db()
-
-        certificate = conn.execute("""
-            SELECT * FROM certificates
-            WHERE certificate_id = ?
-        """, (certificate_id,)).fetchone()
-
+        certificate = conn.execute(
+            "SELECT * FROM certificates WHERE certificate_id = ?",
+            (certificate_id,)
+        ).fetchone()
         conn.close()
 
         if certificate and certificate["file_hash"]:
@@ -324,9 +282,7 @@ def verify():
                 original_data.encode("utf-8")
             ).hexdigest()
 
-            verified = (
-                calculated_hash == certificate["file_hash"]
-            )
+            verified = calculated_hash == certificate["file_hash"]
 
     return render_template(
         "verify.html",
@@ -354,18 +310,13 @@ def verify_pdf():
 
         else:
             file_bytes = file.read()
-
-            uploaded_hash = hashlib.sha256(
-                file_bytes
-            ).hexdigest()
+            uploaded_hash = hashlib.sha256(file_bytes).hexdigest()
 
             conn = get_db()
-
-            certificate = conn.execute("""
-                SELECT * FROM certificates
-                WHERE file_hash = ?
-            """, (uploaded_hash,)).fetchone()
-
+            certificate = conn.execute(
+                "SELECT * FROM certificates WHERE file_hash = ?",
+                (uploaded_hash,)
+            ).fetchone()
             conn.close()
 
             if certificate:
@@ -385,12 +336,10 @@ def verify_pdf():
 # BLOCKCHAIN RECORDS
 @app.route("/blockchain")
 def view_blockchain():
-    is_valid = blockchain.is_valid()
-
     return render_template(
         "blockchain.html",
         chain=blockchain.chain,
-        is_valid=is_valid
+        is_valid=blockchain.is_valid()
     )
 
 
