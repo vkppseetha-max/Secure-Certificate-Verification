@@ -140,7 +140,7 @@ def index():
 @app.route("/register", methods=["GET", "POST"])
 def register():
     if request.method == "POST":
-        username = request.form.get("username", "").strip()
+        username = request.form.get("email", "").strip()
         password = request.form.get("password", "")
 
         if not username or not password:
