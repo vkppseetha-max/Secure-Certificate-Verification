@@ -212,8 +212,8 @@ def issue():
             "course", ""
         ).strip()
 
-        if not student_name or not course:
-    return "ERROR: Student Name or Course is empty!", 400
+                if not student_name or not course:
+            return "ERROR: Student Name or Course is empty!", 400
 
         issue_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
