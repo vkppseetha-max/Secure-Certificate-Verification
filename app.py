@@ -18,16 +18,16 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(QR_FOLDER, exist_ok=True)
 
 
-# DATABASE CONNECTION
+# DATABASE
 def get_db():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
 
 
-# CREATE TABLES WITHOUT DELETING EXISTING DATA
 def init_db():
     conn = get_db()
+
     conn.execute("""
         CREATE TABLE IF NOT EXISTS USERS (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -54,7 +54,7 @@ def init_db():
     conn.close()
 
 
-# HASH FUNCTION
+# HASH
 def calculate_hash(data):
     return hashlib.sha256(data.encode("utf-8")).hexdigest()
 
@@ -80,35 +80,22 @@ class Block:
 
 class Blockchain:
     def __init__(self):
-        self.chain = [self.create_genesis_block()]
-
-    def create_genesis_block(self):
-        return Block(0, "Genesis Block", "0")
+        self.chain = [Block(0, "Genesis Block", "0")]
 
     def add_block(self, data):
-        previous_block = self.chain[-1]
-        new_block = Block(
-            len(self.chain),
-            data,
-            previous_block.hash
-        )
-        self.chain.append(new_block)
+        previous = self.chain[-1]
+        block = Block(len(self.chain), data, previous.hash)
+        self.chain.append(block)
 
     def is_valid(self):
         for i, block in enumerate(self.chain):
             if block.hash != block.calculate_hash():
                 return False
 
-            if i == 0:
-                if block.previous_hash != "0":
-                    return False
-            else:
-                previous_block = self.chain[i - 1]
+            if i > 0 and block.previous_hash != self.chain[i - 1].hash:
+                return False
 
-                if block.previous_hash != previous_block.hash:
-                    return False
-
-        return True
+        return self.chain[0].previous_hash == "0"
 
 
 blockchain = Blockchain()
@@ -142,14 +129,12 @@ def register():
             flash("Please fill all fields.")
             return redirect(url_for("register"))
 
-        password_hash = calculate_hash(password)
-
         conn = get_db()
 
         try:
             conn.execute(
                 "INSERT INTO USERS (name, email, password_hash) VALUES (?, ?, ?)",
-                (name, email, password_hash)
+                (name, email, calculate_hash(password))
             )
             conn.commit()
             flash("Registration successful. Please login.")
@@ -174,8 +159,7 @@ def login():
 
         conn = get_db()
         user = conn.execute(
-            "SELECT * FROM USERS WHERE email = ?",
-            (email,)
+            "SELECT * FROM USERS WHERE email = ?", (email,)
         ).fetchone()
         conn.close()
 
@@ -226,15 +210,15 @@ def issue():
              certificate_hash, file_hash, issue_date)
             VALUES (?, ?, ?, ?, ?, ?, ?)
         """, (
-            certificate_id,
-            name,
-            course,
-            institution,
-            certificate_hash,
-            "",
-            issue_date
+            certificate_id, name, course, institution,
+            certificate_hash, "", issue_date
         ))
         conn.commit()
+
+        certificate = conn.execute(
+            "SELECT * FROM CERTIFICATES WHERE certificate_id = ?",
+            (certificate_id,)
+        ).fetchone()
         conn.close()
 
         blockchain.add_block({
@@ -242,21 +226,18 @@ def issue():
             "certificate_hash": certificate_hash
         })
 
-        verify_url = request.host_url.rstrip("/") + "/verify"
         qr = qrcode.make(
-            verify_url + "?certificate_id=" + certificate_id
+            request.host_url.rstrip("/")
+            + "/verify?certificate_id="
+            + certificate_id
         )
         qr.save(os.path.join(QR_FOLDER, certificate_id + ".png"))
 
         flash("Certificate issued successfully.")
+
         return render_template(
             "result.html",
-            certificate_id=certificate_id,
-            name=name,
-            course=course,
-            institution=institution,
-            issue_date=issue_date,
-            certificate_hash=certificate_hash
+            certificate=certificate
         )
 
     return render_template("issue.html")
@@ -268,12 +249,10 @@ def verify():
     certificate = None
     verified = False
 
-    certificate_id = request.args.get("certificate_id", "")
+    certificate_id = request.args.get("certificate_id", "").strip()
 
     if request.method == "POST":
-        certificate_id = request.form.get(
-            "certificate_id", ""
-        ).strip()
+        certificate_id = request.form.get("certificate_id", "").strip()
 
     if certificate_id:
         conn = get_db()
@@ -308,19 +287,14 @@ def verify_pdf():
 
     if request.method == "POST":
         file = request.files.get("file")
-        certificate_id = request.form.get(
-            "certificate_id", ""
-        ).strip()
+        certificate_id = request.form.get("certificate_id", "").strip()
 
         if not file or not file.filename:
             message = "Please select a PDF file."
-
         elif not file.filename.lower().endswith(".pdf"):
             message = "Only PDF files are supported."
-
         else:
-            file_data = file.read()
-            file_hash = hashlib.sha256(file_data).hexdigest()
+            file_hash = hashlib.sha256(file.read()).hexdigest()
 
             conn = get_db()
             certificate = conn.execute(
@@ -337,9 +311,7 @@ def verify_pdf():
                     else "PDF does not match the stored certificate."
                 )
             else:
-                message = (
-                    "Certificate not found or no original PDF hash is stored."
-                )
+                message = "Certificate not found or no original PDF hash is stored."
 
     return render_template(
         "verify_pdf.html",
@@ -348,15 +320,13 @@ def verify_pdf():
     )
 
 
-# BLOCKCHAIN RECORDS
+# BLOCKCHAIN
 @app.route("/blockchain")
 def view_blockchain():
-    is_valid = blockchain.is_valid()
-
     return render_template(
         "blockchain.html",
         chain=blockchain.chain,
-        is_valid=is_valid
+        is_valid=blockchain.is_valid()
     )
 
 
@@ -376,7 +346,7 @@ def certificates():
     )
 
 
-# ROBOTS.TXT
+# ROBOTS
 @app.route("/robots.txt")
 def robots():
     return "User-agent: *\nAllow: /\n", 200, {
@@ -384,24 +354,21 @@ def robots():
     }
 
 
-# SITEMAP.XML
+# SITEMAP
 @app.route("/sitemap.xml")
 def sitemap():
     base_url = request.host_url.rstrip("/")
-
     xml = f"""<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-    <url><loc>{base_url}/</loc></url>
-    <url><loc>{base_url}/verify</loc></url>
-    <url><loc>{base_url}/blockchain</loc></url>
+<url><loc>{base_url}/</loc></url>
+<url><loc>{base_url}/verify</loc></url>
+<url><loc>{base_url}/blockchain</loc></url>
 </urlset>"""
 
     return xml, 200, {"Content-Type": "application/xml"}
 
 
-# START APPLICATION
 init_db()
 
 if __name__ == "__main__":
-    print("Blockchain valid:", blockchain.is_valid())
     app.run(debug=True)
