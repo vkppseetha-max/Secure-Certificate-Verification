@@ -9,14 +9,18 @@
 
 <header>
     <h1>Certificate Verification</h1>
-    <a href="{{ url_for('home') }}">Home</a>
+    <a href="{{ url_for('index') }}">Home</a>
 </header>
 
 <div class="container">
-    <form method="POST">
+
+    <form method="POST" action="{{ url_for('verify') }}">
         <label>Enter Certificate ID</label>
 
-        <input type="text" name="certificate_id" required>
+        <input type="text"
+               name="certificate_id"
+               placeholder="Enter your Certificate ID"
+               required>
 
         <button type="submit">Verify Certificate</button>
     </form>
@@ -26,10 +30,38 @@
     {% endif %}
 
     {% if certificate %}
-        <p><b>Name:</b> {{ certificate.name }}</p>
-        <p><b>Course:</b> {{ certificate.course }}</p>
-        <p><b>Institution:</b> {{ certificate.institution }}</p>
+        <h3>Certificate Details</h3>
+
+        <p>
+            <b>Student Name:</b>
+            {{ certificate.student_name }}
+        </p>
+
+        <p>
+            <b>Course:</b>
+            {{ certificate.course }}
+        </p>
+
+        <p>
+            <b>Certificate ID:</b>
+            {{ certificate.certificate_id }}
+        </p>
+
+        <p>
+            <b>Issue Date:</b>
+            {{ certificate.issue_date }}
+        </p>
+
+        <p>
+            <b>Certificate Hash:</b>
+            <br>
+            <textarea rows="4" readonly>{{ certificate.file_hash }}</textarea>
+        </p>
     {% endif %}
+
+    <br>
+    <a href="{{ url_for('index') }}" class="btn">Home</a>
+
 </div>
 
 </body>
