@@ -110,6 +110,7 @@ def login_required(func):
         if "user_id" not in session:
             flash("Please login first.")
             return redirect(url_for("login"))
+
         return func(*args, **kwargs)
 
     return wrapper
@@ -161,7 +162,8 @@ def login():
 
         conn = get_db()
         user = conn.execute(
-            "SELECT * FROM users WHERE username = ?", (username,)
+            "SELECT * FROM users WHERE username = ?",
+            (username,)
         ).fetchone()
         conn.close()
 
@@ -190,21 +192,28 @@ def issue():
         student_name = request.form.get("student_name", "").strip()
         course = request.form.get("course", "").strip()
 
+        print("FORM DATA:", request.form.to_dict())
+
         if not student_name or not course:
-    flash("Please enter Student Name and Course.")
-    return redirect(url_for("issue"))
+            flash("Please enter Student Name and Course.")
+            return redirect(url_for("issue"))
 
         issue_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         certificate_id = hashlib.sha256(
             (
-                student_name + course + issue_date
+                student_name
+                + course
+                + issue_date
                 + os.urandom(16).hex()
             ).encode("utf-8")
         ).hexdigest()[:16].upper()
 
         certificate_data = (
-            certificate_id + student_name + course + issue_date
+            certificate_id
+            + student_name
+            + course
+            + issue_date
         )
 
         file_hash = hashlib.sha256(
@@ -212,11 +221,19 @@ def issue():
         ).hexdigest()
 
         conn = get_db()
+
         conn.execute("""
             INSERT INTO certificates
             (certificate_id, student_name, course, issue_date, file_hash)
             VALUES (?, ?, ?, ?, ?)
-        """, (certificate_id, student_name, course, issue_date, file_hash))
+        """, (
+            certificate_id,
+            student_name,
+            course,
+            issue_date,
+            file_hash
+        ))
+
         conn.commit()
         conn.close()
 
@@ -234,6 +251,7 @@ def issue():
         qr = qrcode.make(verify_url)
         image_buffer = io.BytesIO()
         qr.save(image_buffer, format="PNG")
+
         qr_code = base64.b64encode(
             image_buffer.getvalue()
         ).decode("utf-8")
@@ -258,17 +276,23 @@ def verify():
     certificate = None
     verified = False
 
-    certificate_id = request.args.get("certificate_id", "").strip()
+    certificate_id = request.args.get(
+        "certificate_id", ""
+    ).strip()
 
     if request.method == "POST":
-        certificate_id = request.form.get("certificate_id", "").strip()
+        certificate_id = request.form.get(
+            "certificate_id", ""
+        ).strip()
 
     if certificate_id:
         conn = get_db()
-        certificate = conn.execute(
-            "SELECT * FROM certificates WHERE certificate_id = ?",
-            (certificate_id,)
-        ).fetchone()
+
+        certificate = conn.execute("""
+            SELECT * FROM certificates
+            WHERE certificate_id = ?
+        """, (certificate_id,)).fetchone()
+
         conn.close()
 
         if certificate and certificate["file_hash"]:
@@ -283,7 +307,9 @@ def verify():
                 original_data.encode("utf-8")
             ).hexdigest()
 
-            verified = calculated_hash == certificate["file_hash"]
+            verified = (
+                calculated_hash == certificate["file_hash"]
+            )
 
     return render_template(
         "verify.html",
@@ -314,10 +340,12 @@ def verify_pdf():
             uploaded_hash = hashlib.sha256(file_bytes).hexdigest()
 
             conn = get_db()
-            certificate = conn.execute(
-                "SELECT * FROM certificates WHERE file_hash = ?",
-                (uploaded_hash,)
-            ).fetchone()
+
+            certificate = conn.execute("""
+                SELECT * FROM certificates
+                WHERE file_hash = ?
+            """, (uploaded_hash,)).fetchone()
+
             conn.close()
 
             if certificate:
