@@ -273,10 +273,14 @@ def verify():
     certificate = None
     message = None
 
-    certificate_id = request.args.get("certificate_id", "").strip()
+    certificate_id = ""
 
     if request.method == "POST":
         certificate_id = request.form.get(
+            "certificate_id", ""
+        ).strip()
+    else:
+        certificate_id = request.args.get(
             "certificate_id", ""
         ).strip()
 
@@ -284,16 +288,19 @@ def verify():
         conn = get_db()
 
         certificate = conn.execute(
-            "SELECT * FROM certificates WHERE certificate_id = ?",
+            """
+            SELECT * FROM certificates
+            WHERE UPPER(certificate_id) = UPPER(?)
+            """,
             (certificate_id,)
         ).fetchone()
 
         conn.close()
 
         if certificate:
-            message = "Certificate verified successfully."
+            message = "Certificate verified successfully!"
         else:
-            message = "Certificate not found. Invalid certificate ID."
+            message = "Certificate not found. Please check the Certificate ID."
 
     return render_template(
         "verify.html",
