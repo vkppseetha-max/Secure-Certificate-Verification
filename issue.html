@@ -11,6 +11,13 @@
 </header>
 
 <div class="container">
+
+    {% with messages = get_flashed_messages() %}
+        {% for message in messages %}
+            <p style="color:red;">{{ message }}</p>
+        {% endfor %}
+    {% endwith %}
+
     <form method="POST">
         <label>Student Name</label>
         <input type="text" name="student_name" required>
@@ -22,6 +29,7 @@
     </form>
 
     <a href="{{ url_for('index') }}" class="btn">Home</a>
+
 </div>
 
 </body>
