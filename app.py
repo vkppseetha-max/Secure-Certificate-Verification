@@ -91,14 +91,14 @@ class Blockchain:
         if not self.chain:
             return False
 
-        if self.chain[0].previous_hash != "0":
-            return False
-
         for i, block in enumerate(self.chain):
             if block.hash != block.calculate_hash():
                 return False
 
-            if i > 0:
+            if i == 0:
+                if block.previous_hash != "0":
+                    return False
+            else:
                 previous = self.chain[i - 1]
 
                 if block.previous_hash != previous.hash:
@@ -111,7 +111,6 @@ class Blockchain:
 
 
 blockchain = Blockchain()
-
 
 # LOGIN REQUIRED
 def login_required(function):
