@@ -69,13 +69,13 @@ class Block:
         self.hash = self.calculate_hash()
 
     def calculate_hash(self):
-        content = (
-            str(self.index)
-            + self.timestamp
-            + str(self.data)
-            + self.previous_hash
-        )
-        return hashlib.sha256(content.encode("utf-8")).hexdigest() "Genesis Block", "0")]
+        content = str(self.index) + self.timestamp + str(self.data) + self.previous_hash
+        return hashlib.sha256(content.encode("utf-8")).hexdigest()
+
+
+class Blockchain:
+    def __init__(self):
+        self.chain = [Block(0, "Genesis Block", "0")]
 
     def add_block(self, data):
         previous = self.chain[-1]
@@ -86,16 +86,12 @@ class Block:
         for i, block in enumerate(self.chain):
             if block.hash != block.calculate_hash():
                 return False
-
             if i > 0 and block.previous_hash != self.chain[i - 1].hash:
                 return False
-
         return self.chain[0].previous_hash == "0"
 
 
 blockchain = Blockchain()
-
-
 # LOGIN REQUIRED
 def login_required(function):
     @wraps(function)
