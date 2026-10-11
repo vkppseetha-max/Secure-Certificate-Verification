@@ -58,6 +58,7 @@ def init_db():
 def calculate_hash(data):
     return hashlib.sha256(data.encode("utf-8")).hexdigest()
 
+
 # BLOCKCHAIN
 class Block:
     def __init__(self, index, data, previous_hash):
@@ -68,7 +69,12 @@ class Block:
         self.hash = self.calculate_hash()
 
     def calculate_hash(self):
-        content = str(self.index) + self.timestamp + str(self.data) + self.previous_hash
+        content = (
+            str(self.index)
+            + self.timestamp
+            + str(self.data)
+            + self.previous_hash
+        )
         return hashlib.sha256(content.encode("utf-8")).hexdigest()
 
 
@@ -81,29 +87,41 @@ class Blockchain:
         block = Block(len(self.chain), data, previous.hash)
         self.chain.append(block)
 
-   def is_valid(self):
-    for i in range(len(self.chain)):
-        current = self.chain[i]
-
-        if current.hash != current.calculate_hash():
+    def is_valid(self):
+        if not self.chain:
             return False
 
-        if i > 0:
-            previous = self.chain[i - 1]
-            if current.previous_hash != previous.hash:
+        if self.chain[0].previous_hash != "0":
+            return False
+
+        for i, block in enumerate(self.chain):
+            if block.hash != block.calculate_hash():
                 return False
 
-    return True
+            if i > 0:
+                previous = self.chain[i - 1]
+
+                if block.previous_hash != previous.hash:
+                    return False
+
+                if block.index != previous.index + 1:
+                    return False
+
+        return True
 
 
 blockchain = Blockchain()
+
+
 # LOGIN REQUIRED
 def login_required(function):
     @wraps(function)
     def wrapper(*args, **kwargs):
         if "user_id" not in session:
             return redirect(url_for("login"))
+
         return function(*args, **kwargs)
+
     return wrapper
 
 
@@ -154,9 +172,12 @@ def login():
         password = request.form.get("password", "")
 
         conn = get_db()
+
         user = conn.execute(
-            "SELECT * FROM USERS WHERE email = ?", (email,)
+            "SELECT * FROM USERS WHERE email = ?",
+            (email,)
         ).fetchone()
+
         conn.close()
 
         if user and user["password_hash"] == calculate_hash(password):
@@ -190,32 +211,51 @@ def issue():
             return redirect(url_for("issue"))
 
         certificate_id = "CERT-" + hashlib.sha256(
-            (name + course + institution + datetime.now().isoformat()).encode()
+            (
+                name
+                + course
+                + institution
+                + datetime.now().isoformat()
+            ).encode("utf-8")
         ).hexdigest()[:12].upper()
 
         issue_date = datetime.now().strftime("%Y-%m-%d")
 
         certificate_hash = calculate_hash(
-            certificate_id + name + course + institution + issue_date
+            certificate_id
+            + name
+            + course
+            + institution
+            + issue_date
         )
 
         conn = get_db()
-        conn.execute("""
-            INSERT INTO CERTIFICATES
-            (certificate_id, name, course, institution,
-             certificate_hash, file_hash, issue_date)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        """, (
-            certificate_id, name, course, institution,
-            certificate_hash, "", issue_date
-        ))
-        conn.commit()
 
-        certificate = conn.execute(
-            "SELECT * FROM CERTIFICATES WHERE certificate_id = ?",
-            (certificate_id,)
-        ).fetchone()
-        conn.close()
+        try:
+            conn.execute("""
+                INSERT INTO CERTIFICATES
+                (certificate_id, name, course, institution,
+                 certificate_hash, file_hash, issue_date)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (
+                certificate_id,
+                name,
+                course,
+                institution,
+                certificate_hash,
+                "",
+                issue_date
+            ))
+
+            conn.commit()
+
+            certificate = conn.execute(
+                "SELECT * FROM CERTIFICATES WHERE certificate_id = ?",
+                (certificate_id,)
+            ).fetchone()
+
+        finally:
+            conn.close()
 
         blockchain.add_block({
             "certificate_id": certificate_id,
@@ -227,7 +267,10 @@ def issue():
             + "/verify?certificate_id="
             + certificate_id
         )
-        qr.save(os.path.join(QR_FOLDER, certificate_id + ".png"))
+
+        qr.save(
+            os.path.join(QR_FOLDER, certificate_id + ".png")
+        )
 
         flash("Certificate issued successfully.")
 
@@ -245,17 +288,23 @@ def verify():
     certificate = None
     verified = False
 
-    certificate_id = request.args.get("certificate_id", "").strip()
+    certificate_id = request.args.get(
+        "certificate_id", ""
+    ).strip()
 
     if request.method == "POST":
-        certificate_id = request.form.get("certificate_id", "").strip()
+        certificate_id = request.form.get(
+            "certificate_id", ""
+        ).strip()
 
     if certificate_id:
         conn = get_db()
+
         certificate = conn.execute(
             "SELECT * FROM CERTIFICATES WHERE certificate_id = ?",
             (certificate_id,)
         ).fetchone()
+
         conn.close()
 
         if certificate:
@@ -266,7 +315,10 @@ def verify():
                 + certificate["institution"]
                 + certificate["issue_date"]
             )
-            verified = expected_hash == certificate["certificate_hash"]
+
+            verified = (
+                expected_hash == certificate["certificate_hash"]
+            )
 
     return render_template(
         "verify.html",
@@ -283,31 +335,43 @@ def verify_pdf():
 
     if request.method == "POST":
         file = request.files.get("file")
-        certificate_id = request.form.get("certificate_id", "").strip()
+        certificate_id = request.form.get(
+            "certificate_id", ""
+        ).strip()
 
         if not file or not file.filename:
             message = "Please select a PDF file."
+
         elif not file.filename.lower().endswith(".pdf"):
             message = "Only PDF files are supported."
+
         else:
             file_hash = hashlib.sha256(file.read()).hexdigest()
 
             conn = get_db()
+
             certificate = conn.execute(
                 "SELECT * FROM CERTIFICATES WHERE certificate_id = ?",
                 (certificate_id,)
             ).fetchone()
+
             conn.close()
 
             if certificate and certificate["file_hash"]:
-                verified = file_hash == certificate["file_hash"]
+                verified = (
+                    file_hash == certificate["file_hash"]
+                )
+
                 message = (
                     "PDF verified successfully."
                     if verified
                     else "PDF does not match the stored certificate."
                 )
+
             else:
-                message = "Certificate not found or no original PDF hash is stored."
+                message = (
+                    "Certificate not found or no original PDF hash is stored."
+                )
 
     return render_template(
         "verify_pdf.html",
@@ -316,7 +380,7 @@ def verify_pdf():
     )
 
 
-# BLOCKCHAIN
+# BLOCKCHAIN VIEW
 @app.route("/blockchain")
 def view_blockchain():
     return render_template(
@@ -331,9 +395,11 @@ def view_blockchain():
 @login_required
 def certificates():
     conn = get_db()
+
     records = conn.execute(
         "SELECT * FROM CERTIFICATES ORDER BY id DESC"
     ).fetchall()
+
     conn.close()
 
     return render_template(
@@ -354,6 +420,7 @@ def robots():
 @app.route("/sitemap.xml")
 def sitemap():
     base_url = request.host_url.rstrip("/")
+
     xml = f"""<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 <url><loc>{base_url}/</loc></url>
@@ -361,10 +428,15 @@ def sitemap():
 <url><loc>{base_url}/blockchain</loc></url>
 </urlset>"""
 
-    return xml, 200, {"Content-Type": "application/xml"}
+    return xml, 200, {
+        "Content-Type": "application/xml"
+    }
 
 
+# INITIALIZE DATABASE
 init_db()
 
+
+# RUN APPLICATION
 if __name__ == "__main__":
     app.run(debug=True)
