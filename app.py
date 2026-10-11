@@ -213,8 +213,7 @@ def issue():
         ).strip()
 
         if not student_name or not course:
-            flash("Enter student name and course.")
-            return redirect(url_for("issue"))
+    return "ERROR: Student Name or Course is empty!", 400
 
         issue_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
