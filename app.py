@@ -191,7 +191,8 @@ def issue():
         course = request.form.get("course", "").strip()
 
         if not student_name or not course:
-            return "ERROR: Student Name or Course is empty!", 400
+    flash("Please enter Student Name and Course.")
+    return redirect(url_for("issue"))
 
         issue_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
