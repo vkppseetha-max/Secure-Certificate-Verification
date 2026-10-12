@@ -1,67 +1,70 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Verify Certificate</title>
-    <link rel="stylesheet"
-          href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
 
 <header>
     <h1>Certificate Verification</h1>
-    <a href="{{ url_for('index') }}">Home</a>
+    <p>Secure Digital Certificate Verification Using Blockchain and Hashing</p>
 </header>
 
 <div class="container">
+    <h2>Verify Your Certificate</h2>
+
+    {% with messages = get_flashed_messages() %}
+        {% if messages %}
+            {% for msg in messages %}
+                <p>{{ msg }}</p>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
 
     <form method="POST" action="{{ url_for('verify') }}">
-        <label>Enter Certificate ID</label>
-
-        <input type="text"
-               name="certificate_id"
-               placeholder="Enter your Certificate ID"
-               required>
-
-        <button type="submit">Verify Certificate</button>
+        <label for="certificate_id">Certificate ID</label>
+        <input
+            type="text"
+            id="certificate_id"
+            name="certificate_id"
+            value="{{ certificate_id or '' }}"
+            placeholder="Enter Certificate ID"
+            required
+        >
+        <button type="submit" class="btn">Verify Certificate</button>
     </form>
 
     {% if message %}
-        <h2>{{ message }}</h2>
+        <h3>{{ message }}</h3>
     {% endif %}
 
     {% if certificate %}
         <h3>Certificate Details</h3>
 
-        <p>
-            <b>Student Name:</b>
-            {{ certificate.student_name }}
-        </p>
+        <p><b>Student Name:</b> {{ certificate['student_name'] }}</p>
+        <p><b>Course:</b> {{ certificate['course'] }}</p>
+        <p><b>Certificate ID:</b> {{ certificate['certificate_id'] }}</p>
+        <p><b>Issue Date:</b> {{ certificate['issue_date'] }}</p>
 
-        <p>
-            <b>Course:</b>
-            {{ certificate.course }}
-        </p>
-
-        <p>
-            <b>Certificate ID:</b>
-            {{ certificate.certificate_id }}
-        </p>
-
-        <p>
-            <b>Issue Date:</b>
-            {{ certificate.issue_date }}
-        </p>
-
-        <p>
-            <b>Certificate Hash:</b>
-            <br>
-            <textarea rows="4" readonly>{{ certificate.file_hash }}</textarea>
-        </p>
+        <p><b>Certificate Hash:</b></p>
+        <textarea rows="4" readonly>{{ certificate['file_hash'] }}</textarea>
     {% endif %}
 
-    <br>
-    <a href="{{ url_for('index') }}" class="btn">Home</a>
+    <hr>
 
+    <h3>Verify an Uploaded PDF</h3>
+    <form method="POST" action="{{ url_for('verify_pdf') }}" enctype="multipart/form-data">
+        <label for="file">Select PDF file</label>
+        <input type="file" id="file" name="file" accept=".pdf" required>
+        <button type="submit" class="btn">Verify PDF</button>
+    </form>
+
+    <p>
+        <a href="{{ url_for('index') }}" class="btn">Home</a>
+    </p>
 </div>
 
 </body>
