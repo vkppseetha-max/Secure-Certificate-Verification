@@ -36,9 +36,21 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL,
             email TEXT UNIQUE NOT NULL,
-            password TEXT NOT NULL
+            password_hash TEXT
         )
     """)
+
+    # Keep existing user database compatible.
+    user_columns = [
+        row["name"]
+        for row in conn.execute("PRAGMA table_info(users)").fetchall()
+    ]
+
+    if "password_hash" not in user_columns:
+        conn.execute("ALTER TABLE users ADD COLUMN password_hash TEXT")
+
+    if "password" not in user_columns:
+        conn.execute("ALTER TABLE users ADD COLUMN password TEXT")
 
     conn.execute("""
         CREATE TABLE IF NOT EXISTS certificates (
@@ -62,13 +74,9 @@ class Blockchain:
         self.chain = []
 
     def add_block(self, data):
-        previous_hash = (
-            self.chain[-1]["hash"] if self.chain else "0"
-        )
-
-        block_data = str(data) + previous_hash
+        previous_hash = self.chain[-1]["hash"] if self.chain else "0"
         block_hash = hashlib.sha256(
-            block_data.encode("utf-8")
+            (str(data) + previous_hash).encode("utf-8")
         ).hexdigest()
 
         self.chain.append({
@@ -90,7 +98,6 @@ def login_required(function):
         if "user_id" not in session:
             return redirect(url_for("login"))
         return function(*args, **kwargs)
-
     return wrapper
 
 
@@ -115,19 +122,37 @@ def register():
             return redirect(url_for("register"))
 
         hashed_password = generate_password_hash(password)
-
         conn = get_db()
 
         try:
-            conn.execute(
-                "INSERT INTO users (name, email, password) VALUES (?, ?, ?)",
-                (name, email, hashed_password)
-            )
+            columns = [
+                row["name"]
+                for row in conn.execute("PRAGMA table_info(users)").fetchall()
+            ]
+
+            if "password_hash" in columns:
+                conn.execute(
+                    "INSERT INTO users (name, email, password_hash) VALUES (?, ?, ?)",
+                    (name, email, hashed_password)
+                )
+            else:
+                conn.execute(
+                    "INSERT INTO users (name, email, password) VALUES (?, ?, ?)",
+                    (name, email, hashed_password)
+                )
+
             conn.commit()
+
         except sqlite3.IntegrityError:
             conn.close()
             flash("Email already registered. Please login.")
             return redirect(url_for("login"))
+
+        except sqlite3.Error as error:
+            conn.close()
+            app.logger.exception("Registration database error: %s", error)
+            flash("Registration failed. Please try again.")
+            return redirect(url_for("register"))
 
         conn.close()
         flash("Registration successful. Please login.")
@@ -146,15 +171,24 @@ def login():
 
         conn = get_db()
         user = conn.execute(
-            "SELECT * FROM users WHERE email = ?",
-            (email,)
+            "SELECT * FROM users WHERE email = ?", (email,)
         ).fetchone()
         conn.close()
 
-        if user and check_password_hash(user["password"], password):
-            session["user_id"] = user["id"]
-            session["user_name"] = user["name"]
-            return redirect(url_for("index"))
+        if user:
+            stored_hash = (
+                user["password_hash"]
+                if "password_hash" in user.keys()
+                and user["password_hash"]
+                else user["password"]
+                if "password" in user.keys()
+                else None
+            )
+
+            if stored_hash and check_password_hash(stored_hash, password):
+                session["user_id"] = user["id"]
+                session["user_name"] = user["name"]
+                return redirect(url_for("index"))
 
         flash("Invalid email or password.")
         return redirect(url_for("login"))
@@ -176,8 +210,6 @@ def logout():
 @login_required
 def issue():
     if request.method == "POST":
-
-        # Accept the field names used by the website form
         student_name = (
             request.form.get("name")
             or request.form.get("student_name")
@@ -185,51 +217,45 @@ def issue():
         ).strip()
 
         course = request.form.get("course", "").strip()
-
-        # Institution may be included in the form
         institution = request.form.get("institution", "").strip()
-
-        print("FORM DATA:", request.form.to_dict())
 
         if not student_name or not course:
             flash("Please enter Student Name and Course.")
             return redirect(url_for("issue"))
 
         issue_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
         random_value = os.urandom(16).hex()
 
         certificate_id = hashlib.sha256(
-            (
-                student_name + course +
-                issue_date + random_value
-            ).encode("utf-8")
+            (student_name + course + issue_date + random_value).encode("utf-8")
         ).hexdigest()[:16].upper()
 
         certificate_data = (
-            certificate_id + student_name +
-            course + issue_date
+            certificate_id + student_name + course + issue_date
         )
-
         file_hash = hashlib.sha256(
             certificate_data.encode("utf-8")
         ).hexdigest()
 
         conn = get_db()
 
-        conn.execute("""
-            INSERT INTO certificates
-            (certificate_id, student_name, course, issue_date, file_hash)
-            VALUES (?, ?, ?, ?, ?)
-        """, (
-            certificate_id,
-            student_name,
-            course,
-            issue_date,
-            file_hash
-        ))
+        try:
+            conn.execute("""
+                INSERT INTO certificates
+                (certificate_id, student_name, course, issue_date, file_hash)
+                VALUES (?, ?, ?, ?, ?)
+            """, (
+                certificate_id, student_name, course, issue_date, file_hash
+            ))
+            conn.commit()
 
-        conn.commit()
+        except sqlite3.Error:
+            conn.rollback()
+            conn.close()
+            app.logger.exception("Certificate database error")
+            flash("Certificate could not be saved. Please try again.")
+            return redirect(url_for("issue"))
+
         conn.close()
 
         blockchain.add_block({
@@ -273,27 +299,18 @@ def verify():
     certificate = None
     message = None
 
-    certificate_id = ""
-
     if request.method == "POST":
-        certificate_id = request.form.get(
-            "certificate_id", ""
-        ).strip()
+        certificate_id = request.form.get("certificate_id", "").strip()
     else:
-        certificate_id = request.args.get(
-            "certificate_id", ""
-        ).strip()
+        certificate_id = request.args.get("certificate_id", "").strip()
 
     if certificate_id:
         conn = get_db()
 
-        certificate = conn.execute(
-            """
+        certificate = conn.execute("""
             SELECT * FROM certificates
             WHERE UPPER(certificate_id) = UPPER(?)
-            """,
-            (certificate_id,)
-        ).fetchone()
+        """, (certificate_id,)).fetchone()
 
         conn.close()
 
@@ -305,7 +322,8 @@ def verify():
     return render_template(
         "verify.html",
         certificate=certificate,
-        message=message
+        message=message,
+        certificate_id=certificate_id if "certificate_id" in locals() else ""
     )
 
 
@@ -319,8 +337,7 @@ def verify_pdf():
         flash("Please select a PDF file.")
         return redirect(url_for("verify"))
 
-    file_bytes = uploaded_file.read()
-    uploaded_hash = hashlib.sha256(file_bytes).hexdigest()
+    uploaded_hash = hashlib.sha256(uploaded_file.read()).hexdigest()
 
     conn = get_db()
     certificates = conn.execute(
@@ -328,12 +345,10 @@ def verify_pdf():
     ).fetchall()
     conn.close()
 
-    matched_certificate = None
-
-    for certificate in certificates:
-        if certificate["file_hash"] == uploaded_hash:
-            matched_certificate = certificate
-            break
+    matched_certificate = next(
+        (cert for cert in certificates if cert["file_hash"] == uploaded_hash),
+        None
+    )
 
     if matched_certificate:
         return render_template(
@@ -347,8 +362,7 @@ def verify_pdf():
         certificate=None,
         message=(
             "Uploaded PDF does not match a stored certificate hash. "
-            "This feature requires storing the original PDF file hash "
-            "when the certificate PDF is issued."
+            "The original PDF hash must be stored during certificate issuance."
         )
     )
 
